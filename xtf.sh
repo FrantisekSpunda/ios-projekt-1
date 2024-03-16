@@ -5,24 +5,38 @@ export POSIXLY_CORRECT=yes
 user=""
 command=""
 logs=()
+datetime_before="999999999999"
+datetime_after=""
+currency=""
+XTF_PROFIT=20
 
 function list() {
   echo ""
+  echo "list"
+  echo ""
   for log in "${logs[@]}"; do
-    awk -F ';' -v user="$user" '$1 == user' "$log"
-  done
-}
+    cat "$log"
+  done | awk -F ';' -v user="$user" -v datetime_before="$datetime_before" -v datetime_after="$datetime_after" -v currency="$currency" -v command="$command" -v XTF_PROFIT="$XTF_PROFIT" '
+    user == $1 && (currency == $3 || !currency) && datetime_before > $2 && datetime_after < $2 {
+      if (command == "listCurrency") { currencies[$3] = 1 }
+      else if (command == "list") { print }
+      else if (command == "status" || command == "profit") {
+        currencies[$3] = (currencies[$3] || 0) + $4
+      }
+    }
 
-function listCurrency() {
-  echo "x list currency"
-}
+    END {
+      for (currency in currencies) {
+        if (command == "listCurrency")
+          print currency
+        else if (command == "status")
+          print currency " : " currencies[currency]
+        else if (command == "profit")
+          print currency " : " currencies[currency] * (((XTF_PROFIT || 20) + 100) / 100)
+      }
+    }
+  '
 
-function status() {
-  echo "x status"
-}
-
-function profit() {
-  echo "x profit"
 }
 
 function help() {
@@ -91,7 +105,7 @@ function main() {
     echo "$log"
   done
 
-  $command
+  list
 }
 
 main "$@"
