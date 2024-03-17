@@ -11,7 +11,7 @@ currency=""
 datetime_regex='^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$'
 local_xtf_profit=20
 
-validate_datetime() {
+function validate_datetime() {
   if ! [[ "$1" =~ $datetime_regex ]]; then
     echo "Date and time are not in right format: $1 (YYYY-MM-DD HH:MM:SS)."
     exit
@@ -44,7 +44,7 @@ while [[ "$#" -gt 0 ]]; do
   # Filters
   -a)
     datetime_after="$2"
-    validate_datetime "$2"
+    val idate_datetime "$2"
     shift
     ;;
   -b)
@@ -53,7 +53,8 @@ while [[ "$#" -gt 0 ]]; do
     shift
     ;;
   -c)
-    currency="$2" shift
+    currency+=" $2"
+    shift
     ;;
   -h | --help)
     help
@@ -91,25 +92,40 @@ for log in "${logs[@]}"; do
     cat "$log"
   fi
 done | awk -F ';' -v user="$user" -v datetime_before="$datetime_before" -v datetime_after="$datetime_after" -v currency="$currency" -v command="$command" -v xtf_profit="$local_xtf_profit" '
-    user == $1 && (currency == $3 || !currency) && datetime_before >= $2 && datetime_after <= $2 {
-      if (command == "listCurrency") { currencies[$3] = 1 }
-      else if (command == "list" || !command) { print }
-      else if (command == "status" || command == "profit") {
-        currencies[$3] = (currencies[$3] || 0) + $4
+    BEGIN {
+      split(currency, currency_list, " ")
+    }
+
+    user == $1 && datetime_before >= $2 && datetime_after <= $2 {
+      may_be=0
+      if(currency_list[1] == "") may_be=1
+      else
+        for (i in currency_list)
+          if (currency_list[i] == $3) {
+              may_be=1
+              break
+          }
+
+      if(may_be==1) {
+        if (command == "listCurrency") { currencies[$3] = 1 }
+        else if (command == "list" || !command) { print }
+        else if (command == "status" || command == "profit") {
+          currencies[$3] = (currencies[$3] || 0) + $4
+        }
       }
     }
 
     END {
-      for (currency in currencies) {
+      for (c in currencies) {
         if (command == "listCurrency")
-          print currency
+          print c
         else if (command == "status")
-          print currency " : " currencies[currency]
+          print c " : " currencies[c]
         else if (command == "profit")
-          if(currencies[currency] > 0)
-            print currency " : " currencies[currency] * ((xtf_profit / 100) + 1)
+          if(currencies[c] > 0)
+            print c " : " currencies[c] * ((xtf_profit / 100) + 1)
           else
-            print currency " : " currencies[currency] 
+            print c " : " currencies[c] 
       }
     }
   '
